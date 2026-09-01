@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Peta Logistik Tanggap Bencana: SPPG & BULOG</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+  :root{
+    --ink:#14232E; --muted:#5C6B78; --panel:#F3F5F7; --line:#D5DBE1; --white:#fff;
+    --sppg:#E4572E; --sppg-soft:#FBE3DB; --bulog:#1F4E79; --bulog-soft:#DCE7F2; --amber:#F2B705;
+    --font:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;font-family:var(--font);color:var(--ink);font-size:14px;line-height:1.45}
+  #map{position:absolute;inset:0;background:#E9EEF2}
+  .leaflet-container{font-family:var(--font)}
+  #panel{position:absolute;top:12px;left:12px;bottom:12px;width:380px;max-width:calc(100% - 24px);background:var(--white);
+    border:1px solid var(--line);border-radius:6px;box-shadow:0 6px 24px rgba(20,35,46,.14);z-index:1000;display:flex;flex-direction:column;overflow:hidden}
+  #panel header{padding:16px 18px 12px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+  #panel h1{font-size:17px;font-weight:600;margin:0 0 2px;letter-spacing:-.01em}
+  #panel header p{margin:0;color:var(--muted);font-size:12.5px}
+  #toggle{display:none;border:1px solid var(--line);background:var(--panel);border-radius:4px;padding:6px 10px;font:inherit;font-size:12.5px;cursor:pointer}
+  #body{overflow-y:auto;padding:14px 18px 18px;flex:1}
+  section{margin-bottom:18px}
+  section h2{font-size:13px;font-weight:600;margin:0 0 8px;color:var(--ink)}
+  .layers label{display:flex;align-items:center;gap:8px;padding:4px 0;cursor:pointer}
+  .sw{width:12px;height:12px;border-radius:50%;display:inline-block;flex:none}
+  .sw.sppg{background:var(--sppg)} .sw.bulog{background:var(--bulog);border-radius:2px} .sw.gudang{background:var(--bulog);transform:rotate(45deg);border-radius:1px;width:10px;height:10px} .sw.prov{background:#CFE0CB;border:1px solid #7FA37A}
+  input[type=text],input[type=number]{width:100%;font:inherit;padding:8px 10px;border:1px solid var(--line);border-radius:4px;background:var(--white);color:var(--ink)}
+  input:focus,button:focus{outline:2px solid var(--amber);outline-offset:1px}
+  #results{list-style:none;margin:6px 0 0;padding:0;max-height:200px;overflow:auto;border:1px solid var(--line);border-radius:4px;display:none}
+  #results li{padding:7px 10px;cursor:pointer;border-bottom:1px solid var(--line)} #results li:last-child{border-bottom:0}
+  #results li:hover{background:var(--panel)} #results small{color:var(--muted);display:block}
+  .row{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+  .chip{border:1px solid var(--line);background:var(--white);border-radius:999px;padding:5px 11px;font:inherit;font-size:12.5px;cursor:pointer;color:var(--ink)}
+  .chip[aria-pressed=true]{background:var(--ink);color:var(--white);border-color:var(--ink)}
+  .field{display:flex;align-items:center;gap:8px;margin-top:8px;font-size:12.5px;color:var(--muted)}
+  .field input{width:90px;padding:5px 8px}
+  #hint{background:var(--panel);border-left:3px solid var(--amber);padding:9px 12px;border-radius:0 4px 4px 0;color:var(--ink);margin-top:10px}
+  #brief{display:none;margin-top:10px}
+  .big{font-size:30px;font-weight:600;line-height:1.05;margin:2px 0 0}
+  .big small{font-size:13px;font-weight:500;color:var(--muted);margin-left:4px}
+  .stat{display:flex;justify-content:space-between;gap:10px;padding:5px 0;border-bottom:1px solid var(--line)} .stat:last-child{border-bottom:0}
+  .stat span:last-child{font-weight:600;white-space:nowrap}
+  .sub{color:var(--muted);font-size:12.5px;margin:8px 0 4px}
+  button.action{font:inherit;font-size:13px;padding:7px 12px;border-radius:4px;border:1px solid var(--ink);background:var(--ink);color:var(--white);cursor:pointer}
+  button.action.ghost{background:var(--white);color:var(--ink)}
+  details{border-top:1px solid var(--line);padding-top:8px} summary{cursor:pointer;font-weight:600;font-size:13px}
+  table{width:100%;border-collapse:collapse;font-size:12.5px;margin-top:6px} td{padding:3px 0;border-bottom:1px solid var(--line)} td:last-child{text-align:right;font-variant-numeric:tabular-nums}
+  .note{font-size:12px;color:var(--muted)} .note a{color:var(--bulog)}
+  .marker-cluster{background:rgba(228,87,46,.25)} .marker-cluster div{background:var(--sppg);color:#fff;font-family:var(--font);font-weight:600;font-size:12px;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.3)}
+  .marker-cluster-small,.marker-cluster-medium,.marker-cluster-large{background:rgba(228,87,46,.22)}
+  .marker-cluster-small div,.marker-cluster-medium div,.marker-cluster-large div{background:var(--sppg)}
+  .kanwil-icon{background:var(--bulog);color:#fff;font-weight:600;font-size:11px;border:2px solid #fff;border-radius:3px;width:22px!important;height:22px!important;display:flex;align-items:center;justify-content:center;box-shadow:0 1px 4px rgba(0,0,0,.35)}
+  .gudang-icon{background:var(--bulog);border:2px solid #fff;width:12px!important;height:12px!important;transform:rotate(45deg);box-shadow:0 1px 3px rgba(0,0,0,.35)}
+  .leaflet-popup-content{font-size:13px;line-height:1.4;margin:10px 12px} .leaflet-popup-content b{font-weight:600}
+  .leaflet-popup-content .tag{display:inline-block;font-size:11px;padding:1px 6px;border-radius:3px;background:var(--panel);color:var(--muted);margin-top:4px}
+  #probe-label{background:var(--ink);color:#fff;border:0;border-radius:3px;padding:3px 7px;font-size:12px;font-weight:600;white-space:nowrap;box-shadow:0 1px 4px rgba(0,0,0,.3)}
+  @media (max-width:640px){
+    #panel{top:auto;left:0;right:0;bottom:0;width:100%;max-width:100%;border-radius:12px 12px 0 0;max-height:70vh}
+    #panel.collapsed #body{display:none}
+    #toggle{display:inline-block}
+    .big{font-size:26px}
+  }
+  @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div id="map" role="application" aria-label="Peta SPPG dan BULOG"></div>
+<aside id="panel">
+  <header>
+    <div>
+      <h1>Peta Logistik Tanggap Bencana</h1>
+      <p><span id="n-sppg">0</span> SPPG dan 26 Kanwil BULOG. Klik peta untuk menghitung kapasitas di sekitar titik bencana.</p>
+    </div>
+    <button id="toggle" aria-expanded="true">Tutup</button>
+  </header>
+  <div id="body">
+    <section class="layers">
+      <h2>Lapisan</h2>
+      <label><input type="checkbox" id="ly-sppg" checked><span class="sw sppg"></span>SPPG (dapur MBG)</label>
+      <label><input type="checkbox" id="ly-kanwil" checked><span class="sw bulog"></span>Kanwil BULOG (26)</label>
+      <label><input type="checkbox" id="ly-gudang" checked><span class="sw gudang"></span>Gudang BULOG <span class="note" id="n-gudang">(belum ada data, lihat catatan)</span></label>
+      <label><input type="checkbox" id="ly-prov" checked><span class="sw prov"></span>Batas provinsi</label>
+    </section>
+    <section>
+      <h2>Cari wilayah atau nama SPPG</h2>
+      <input type="text" id="q" placeholder="Contoh: Cianjur, Pacet, Kota Padang" autocomplete="off" aria-label="Cari">
+      <ul id="results" role="listbox"></ul>
+    </section>
+    <section>
+      <h2>Simulasi titik bencana</h2>
+      <div class="row" id="radii">
+        <button class="chip" data-r="10">10 km</button>
+        <button class="chip" data-r="25" aria-pressed="true">25 km</button>
+        <button class="chip" data-r="50">50 km</button>
+        <button class="chip" data-r="100">100 km</button>
+      </div>
+      <div class="field">Asumsi kapasitas per SPPG <input type="number" id="porsi" value="3000" min="500" step="100"> porsi/hari</div>
+      <div class="field">Koordinat <input type="text" id="coord" placeholder="-6.9, 107.6" style="width:130px"> <button class="chip" id="go">Pakai</button></div>
+      <div id="hint">Klik di mana saja pada peta. Radius, jumlah SPPG, taksiran porsi, dan Kanwil BULOG terdekat akan muncul di sini.</div>
+      <div id="brief">
+        <div class="note" id="b-where"></div>
+        <p class="big"><span id="b-n">0</span><small>SPPG dalam radius <span id="b-r">25</span> km</small></p>
+        <div class="stat"><span>Taksiran kapasitas</span><span id="b-porsi"></span></div>
+        <div class="stat"><span>Kanwil BULOG terdekat</span><span id="b-kw"></span></div>
+        <div class="stat"><span>Gudang BULOG terdekat</span><span id="b-gd"></span></div>
+        <p class="sub">SPPG per kabupaten/kota dalam radius</p>
+        <table id="b-kab"></table>
+        <div class="row" style="margin-top:10px">
+          <button class="action" id="copy">Salin ringkasan</button>
+          <button class="action ghost" id="clear">Hapus titik</button>
+        </div>
+      </div>
+    </section>
+    <section>
+      <details>
+        <summary>Jumlah SPPG per provinsi</summary>
+        <table id="prov-table"></table>
+      </details>
+    </section>
+    <section class="note" id="prov-note">
+      <p><b>Presisi titik.</b> Lokasi SPPG diplot pada <em>centroid kecamatan</em> (99% baris) atau kabupaten/kota (1%), bukan alamat persis. Jarak dalam radius adalah jarak garis lurus (haversine), bukan waktu tempuh. Untuk keputusan operasional, verifikasi titik alamat dari data resmi BGN.</p>
+      <p><b>Sumber.</b> Daftar SPPG: salinan komunitas dari bgn.go.id/operasional-sppg (27.640 baris, 253 duplikat dihapus, commit 26 Agu 2026; rekap resmi BGN 8 Jun 2026 = 29.991). Koordinat kecamatan: gazetteer BPS 2021 (repo wilayah-indonesia). Kanwil BULOG: alamat resmi 2021, koordinat tingkat kota. Batas provinsi: denyherianto/indonesia-38-provinces.</p>
+      <p><b>Gudang BULOG.</b> Isi <code>data/bulog_gudang.csv</code> (nama, lat, lon, kapasitas_ton) dari data resmi BULOG, lalu jalankan <code>scripts/02_build_map.py</code>; peta akan menampilkan gudang dan menghitung gudang terdekat.</p>
+    </section>
+  </div>
+</aside>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/leaflet.markercluster.min.js"></script>
+<script>
+const DATA = __SPPG__;
+const KANWIL = __KANWIL__;
+const PROV = __PROV__;
+// Isi dari data resmi BULOG. Format: {n:"Gudang BULOG X", lat:-6.9, lon:107.6, kap:3500, kanwil:"Jawa Barat"}
+const BULOG_GUDANG = __GUDANG__;
+
+const $ = s => document.querySelector(s);
+const fmt = n => n.toLocaleString('id-ID');
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const R = 6371;
+function hav(a, b, c, d){const p=Math.PI/180;const x=Math.sin((c-a)*p/2)**2+Math.cos(a*p)*Math.cos(c*p)*Math.sin((d-b)*p/2)**2;return 2*R*Math.asin(Math.sqrt(x));}
+
+const map = L.map('map', {zoomControl:false, preferCanvas:true});
+if (window.innerWidth>640) map.fitBounds([[-11,95],[6,141]], {paddingTopLeft:[410,20], paddingBottomRight:[20,20]}); else map.setView([-2.5,118],4);
+L.control.zoom({position:'topright'}).addTo(map);
+const tiles = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {maxZoom:19, subdomains:'abcd',
+  attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>'});
+tiles.on('tileerror', () => { if(!map.hasLayer(osm)) { map.removeLayer(tiles); osm.addTo(map); } });
+const osm = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom:19, attribution:'&copy; OpenStreetMap contributors'});
+tiles.addTo(map);
+
+// Province layer
+const provCount = {};
+DATA.pts.forEach(p => { const n = DATA.provs[p[5]]; provCount[n] = (provCount[n]||0)+1; });
+const provLayer = L.geoJSON(PROV, {style:{color:'#7FA37A', weight:1, fillColor:'#CFE0CB', fillOpacity:.25},
+  onEachFeature:(f,l)=>{ const nm=(f.properties.PROVINSI||f.properties.provinsi||f.properties.name||'').toString(); const key=Object.keys(provCount).find(k=>k.toUpperCase()===nm.toUpperCase()); l.bindTooltip(`${esc(nm)}: ${fmt(provCount[key]||0)} SPPG`, {sticky:true}); }}).addTo(map);
+
+// SPPG cluster layer
+const cluster = L.markerClusterGroup({chunkedLoading:true, maxClusterRadius:60, disableClusteringAtZoom:13, spiderfyOnMaxZoom:true, showCoverageOnHover:false,
+  iconCreateFunction:c=>{const n=c.getChildCount();const s=n<20?30:n<200?38:n<1000?46:54;return L.divIcon({html:`<div style="width:${s}px;height:${s}px;line-height:${s}px;border-radius:50%">${n>=1000?(n/1000).toFixed(1)+'k':n}</div>`,className:'marker-cluster',iconSize:[s,s]});}});
+const markers = DATA.pts.map((p,i)=>{
+  const m = L.circleMarker([p[0],p[1]], {radius:5, color:'#fff', weight:1, fillColor:'#E4572E', fillOpacity:.9});
+  m.bindPopup(()=>`<b>SPPG ${esc(p[2])}</b><br>${esc(DATA.kecs[p[4]])}, ${esc(DATA.kabs[p[3]])}<br>${esc(DATA.provs[p[5]])}<br><span class="tag">${p[6]?'titik = centroid kecamatan':'titik = centroid kab/kota'}</span>`);
+  m._i = i; return m;
+});
+cluster.addLayers(markers); map.addLayer(cluster);
+$('#n-sppg').textContent = fmt(DATA.pts.length);
+
+// Kanwil layer
+const kanwilLayer = L.layerGroup(KANWIL.map(k => L.marker([k.lat,k.lon], {icon:L.divIcon({className:'kanwil-icon', html:'B', iconSize:[22,22]})})
+  .bindPopup(`<b>Kanwil BULOG ${esc(k.n)}</b><br>${esc(k.a)}<br><span class="tag">koordinat: ${esc(k.p)}</span>`))).addTo(map);
+// Gudang layer (from BULOG_GUDANG)
+const gudangLayer = L.layerGroup(BULOG_GUDANG.map(g => L.marker([g.lat,g.lon], {icon:L.divIcon({className:'gudang-icon', iconSize:[12,12]})})
+  .bindPopup(`<b>${esc(g.n)}</b><br>${g.kap?fmt(g.kap)+' ton':''}${g.kanwil?'<br>Kanwil '+esc(g.kanwil):''}`))).addTo(map);
+if (BULOG_GUDANG.length) $('#n-gudang').textContent = `(${BULOG_GUDANG.length})`;
+
+const toggles = {'ly-sppg':cluster,'ly-kanwil':kanwilLayer,'ly-gudang':gudangLayer,'ly-prov':provLayer};
+Object.entries(toggles).forEach(([id,l]) => $('#'+id).addEventListener('change', e => e.target.checked ? map.addLayer(l) : map.removeLayer(l)));
+
+// Province table
+const pt = $('#prov-table');
+Object.entries(provCount).sort((a,b)=>b[1]-a[1]).forEach(([n,c])=>{const tr=document.createElement('tr');tr.innerHTML=`<td>${esc(n)}</td><td>${fmt(c)}</td>`;tr.style.cursor='pointer';tr.onclick=()=>zoomTo(DATA.pts.filter(p=>DATA.provs[p[5]]===n));pt.appendChild(tr);});
+
+// Search
+const kabIdx = {}, kecIdx = {};
+DATA.pts.forEach((p,i)=>{ (kabIdx[p[3]] ||= []).push(i); (kecIdx[p[4]+'|'+p[3]] ||= []).push(i); });
+const res = $('#results');
+function zoomTo(pts){ if(!pts.length) return; const b=L.latLngBounds(pts.map(p=>[p[0],p[1]])); map.fitBounds(b.pad(.3), {maxZoom:12}); }
+$('#q').addEventListener('input', e => {
+  const q = e.target.value.trim().toUpperCase(); res.innerHTML=''; if(q.length<3){res.style.display='none';return;}
+  const out=[];
+  DATA.kabs.forEach((k,i)=>{ if(k.includes(q)&&kabIdx[i]) out.push({t:k,s:`kabupaten/kota, ${kabIdx[i].length} SPPG`,f:()=>zoomTo(kabIdx[i].map(j=>DATA.pts[j]))}); });
+  Object.keys(kecIdx).forEach(key=>{ const [ki,kb]=key.split('|'); const kn=DATA.kecs[ki]; if(kn.includes(q)) out.push({t:`${kn}, ${DATA.kabs[kb]}`,s:`kecamatan, ${kecIdx[key].length} SPPG`,f:()=>zoomTo(kecIdx[key].map(j=>DATA.pts[j]))}); });
+  if(out.length<12) DATA.pts.forEach((p,i)=>{ if(out.length<12 && p[2].toUpperCase().includes(q)) out.push({t:'SPPG '+p[2],s:`${DATA.kecs[p[4]]}, ${DATA.kabs[p[3]]}`,f:()=>{map.setView([p[0],p[1]],14); setTimeout(()=>markers[i].openPopup(),400);}}); });
+  out.slice(0,12).forEach(o=>{const li=document.createElement('li');li.innerHTML=`${esc(o.t)}<small>${esc(o.s)}</small>`;li.onclick=()=>{o.f();res.style.display='none';};res.appendChild(li);});
+  res.style.display = out.length?'block':'none';
+});
+
+// Disaster probe
+let radius = 25, probe = null, probeCenter = null, label = null;
+$('#radii').addEventListener('click', e => { const b=e.target.closest('.chip'); if(!b) return; radius=+b.dataset.r; [...$('#radii').children].forEach(c=>c.setAttribute('aria-pressed', c===b)); if(probeCenter) run(probeCenter); });
+$('#porsi').addEventListener('input', () => probeCenter && run(probeCenter));
+$('#go').addEventListener('click', () => { const m=$('#coord').value.match(/(-?\d+(?:\.\d+)?)\s*[, ]\s*(-?\d+(?:\.\d+)?)/); if(m){ const c=L.latLng(+m[1],+m[2]); map.setView(c, 9); run(c);} });
+map.on('click', e => { if(e.originalEvent.target.closest && e.originalEvent.target.closest('#panel')) return; run(e.latlng); });
+let last = null;
+function run(c){
+  probeCenter = c; const porsi = +$('#porsi').value || 3000;
+  if(probe) probe.remove(); if(label) label.remove();
+  probe = L.circle(c, {radius:radius*1000, color:'#F2B705', weight:2, fillColor:'#F2B705', fillOpacity:.12, interactive:false}).addTo(map);
+  label = L.marker(c, {icon:L.divIcon({className:'', html:`<div id="probe-label">Titik bencana</div>`, iconSize:[90,20], iconAnchor:[45,30]}), interactive:false}).addTo(map);
+  const inside = []; const byKab = {};
+  DATA.pts.forEach((p,i)=>{ const d=hav(c.lat,c.lng,p[0],p[1]); if(d<=radius){ inside.push(i); const k=DATA.kabs[p[3]]; byKab[k]=(byKab[k]||0)+1; } });
+  const kw = KANWIL.map(k=>({k, d:hav(c.lat,c.lng,k.lat,k.lon)})).sort((a,b)=>a.d-b.d).slice(0,3);
+  const gd = BULOG_GUDANG.map(g=>({g, d:hav(c.lat,c.lng,g.lat,g.lon)})).sort((a,b)=>a.d-b.d).slice(0,3);
+  $('#hint').style.display='none'; $('#brief').style.display='block';
+  $('#b-where').textContent = `Titik ${c.lat.toFixed(4)}, ${c.lng.toFixed(4)}`;
+  $('#b-n').textContent = fmt(inside.length); $('#b-r').textContent = radius;
+  $('#b-porsi').textContent = `±${fmt(inside.length*porsi)} porsi/hari`;
+  $('#b-kw').innerHTML = kw.map(x=>`${esc(x.k.n)} (${esc(x.k.c)}), ${Math.round(x.d)} km`).join('<br>');
+  $('#b-gd').innerHTML = gd.length ? gd.map(x=>`${esc(x.g.n)}, ${Math.round(x.d)} km`).join('<br>') : '<span class="note">data gudang belum diisi</span>';
+  const kb = $('#b-kab'); kb.innerHTML=''; const rows=Object.entries(byKab).sort((a,b)=>b[1]-a[1]);
+  rows.slice(0,8).forEach(([k,n])=>{const tr=document.createElement('tr');tr.innerHTML=`<td>${esc(k)}</td><td>${fmt(n)}</td>`;kb.appendChild(tr);});
+  if(rows.length>8){const tr=document.createElement('tr');tr.innerHTML=`<td class="note">${rows.length-8} kab/kota lainnya</td><td></td>`;kb.appendChild(tr);}
+  if(!rows.length){kb.innerHTML='<tr><td class="note">Tidak ada SPPG dalam radius ini. Coba radius lebih besar.</td><td></td></tr>';}
+  last = {c, inside:inside.length, porsi:inside.length*porsi, kw, gd, rows};
+  if($('#panel').classList.contains('collapsed')) { $('#panel').classList.remove('collapsed'); $('#toggle').textContent='Tutup'; }
+}
+$('#clear').addEventListener('click', ()=>{ if(probe) probe.remove(); if(label) label.remove(); probe=label=probeCenter=null; $('#brief').style.display='none'; $('#hint').style.display='block'; });
+$('#copy').addEventListener('click', ()=>{
+  if(!last) return;
+  const t = [`Simulasi titik bencana ${last.c.lat.toFixed(4)}, ${last.c.lng.toFixed(4)} (radius ${radius} km)`,
+    `SPPG dalam radius: ${fmt(last.inside)} unit, taksiran ±${fmt(last.porsi)} porsi/hari`,
+    `Kanwil BULOG terdekat: ${last.kw.map(x=>`${x.k.n} ${Math.round(x.d)} km`).join('; ')}`,
+    last.gd.length?`Gudang BULOG terdekat: ${last.gd.map(x=>`${x.g.n} ${Math.round(x.d)} km`).join('; ')}`:null,
+    `Per kab/kota: ${last.rows.map(([k,n])=>`${k} ${n}`).join('; ')}`,
+    `Catatan: titik SPPG = centroid kecamatan; jarak garis lurus.`].filter(Boolean).join('\n');
+  navigator.clipboard?.writeText(t).then(()=>{$('#copy').textContent='Tersalin';setTimeout(()=>$('#copy').textContent='Salin ringkasan',1500);});
+});
+$('#toggle').addEventListener('click', ()=>{ const p=$('#panel'); p.classList.toggle('collapsed'); const c=p.classList.contains('collapsed'); $('#toggle').textContent=c?'Buka':'Tutup'; $('#toggle').setAttribute('aria-expanded', !c); });
+if (window.innerWidth<=640) { $('#panel').classList.add('collapsed'); $('#toggle').textContent='Buka'; }
+</script>
+</body>
+</html>
