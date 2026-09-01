@@ -214,44 +214,36 @@ $('#q').addEventListener('input', e => {
   res.style.display = out.length?'block':'none';
 });
 
-// Skenario historis: kejadian nyata sebagai titik uji simulasi.
+// Skenario historis: kejadian nyata sebagai titik uji simulasi, urut kronologis.
 // Koordinat = perkiraan pusat kota/kab terdampak (bukan episentrum persis, dibulatkan
 // 2 desimal), sumber catatan publik BNPB/BMKG. Radius hanya usulan awal, bisa diubah.
 const SKENARIO = [
- ['Gempa bumi & tsunami', [
   ['Gempa & tsunami Aceh 2004 (M9,1)', 5.55, 95.32, 100, 'Banda Aceh dan pesisir barat Aceh'],
   ['Gempa Yogyakarta 2006 (M6,4)', -7.89, 110.33, 50, 'Bantul dan sekitarnya'],
   ['Gempa Sumatera Barat 2009 (M7,6)', -0.95, 100.36, 50, 'Kota Padang dan Padang Pariaman'],
+  ['Karhutla Kalimantan Tengah 2015', -2.21, 113.92, 100, 'kabut asap pekat Palangka Raya'],
+  ['Karhutla Sumatera Selatan 2015', -3.40, 105.05, 100, 'lahan gambut Ogan Komering Ilir'],
   ['Gempa Lombok 2018 (M7,0)', -8.35, 116.40, 50, 'Lombok Utara dan Lombok Timur'],
   ['Gempa, tsunami & likuefaksi Palu 2018 (M7,5)', -0.89, 119.87, 50, 'Palu, Sigi, Donggala'],
-  ['Gempa Cianjur 2022 (M5,6)', -6.82, 107.14, 25, 'Kabupaten Cianjur'],
-  ['Gempa Laut Sulawesi 2026 (M7,7)', 3.61, 125.50, 100, 'pusat di laut barat laut Sangihe; peringatan tsunami pesisir Sulut sampai Kaltim'],
-  ['Gempa Flores, NTT 2026 (M7,7)', -8.52, 121.30, 100, 'Nagekeo, Manggarai Timur, Ende; preseden 71 SPPG dapur darurat'],
- ]],
- ['Banjir & banjir bandang', [
+  ['Karhutla Riau 2019', 0.51, 101.45, 100, 'kabut asap Pekanbaru dan sekitarnya'],
   ['Banjir Jabodetabek 2020', -6.21, 106.85, 25, 'Jakarta dan sekitarnya'],
   ['Banjir Kalimantan Selatan 2021', -3.41, 114.85, 50, '10 kab/kota di sepanjang DAS Barito'],
+  ['Gempa Cianjur 2022 (M5,6)', -6.82, 107.14, 25, 'Kabupaten Cianjur'],
   ['Banjir Demak–Kudus 2024', -6.89, 110.64, 25, 'tanggul Sungai Wulan jebol'],
   ['Banjir bandang & lahar Marapi, Sumbar 2024', -0.46, 100.60, 25, 'Tanah Datar dan Agam'],
   ['Banjir & longsor Sumatra 2025 — timur Aceh', 5.05, 97.32, 100, 'Aceh Utara, Aceh Timur, Aceh Tamiang, Bireuen; preseden 341 SPPG dapur darurat se-Sumatra'],
   ['Banjir & longsor Sumatra 2025 — barat Sumut', 1.74, 98.78, 100, 'Sibolga, Tapanuli Utara, Tengah, dan Selatan'],
- ]],
- ['Karhutla (kebakaran hutan & lahan)', [
-  ['Karhutla Riau 2019', 0.51, 101.45, 100, 'kabut asap Pekanbaru dan sekitarnya'],
-  ['Karhutla Kalimantan Tengah 2015', -2.21, 113.92, 100, 'kabut asap pekat Palangka Raya'],
-  ['Karhutla Sumatera Selatan 2015', -3.40, 105.05, 100, 'lahan gambut Ogan Komering Ilir'],
- ]],
+  ['Gempa Laut Sulawesi, Jun 2026 (M7,7)', 3.61, 125.50, 100, 'pusat di laut barat laut Sangihe; peringatan tsunami pesisir Sulut sampai Kaltim'],
+  ['Gempa Flores, NTT, Agu 2026 (M7,7)', -8.52, 121.30, 100, 'Nagekeo, Manggarai Timur, Ende; preseden 71 SPPG dapur darurat'],
 ];
 const sel = $('#skenario');
-SKENARIO.forEach(([grup, items], gi) => {
-  const og = document.createElement('optgroup'); og.label = grup;
-  items.forEach((it, ii) => { const o = document.createElement('option'); o.value = gi + '-' + ii; o.textContent = it[0]; og.appendChild(o); });
-  sel.appendChild(og);
+SKENARIO.forEach((it, i) => {
+  const o = document.createElement('option'); o.value = i; o.textContent = it[0]; sel.appendChild(o);
 });
 let scen = null;
 sel.addEventListener('change', () => {
   const v = sel.value; if (!v) return;
-  const [gi, ii] = v.split('-').map(Number); const it = SKENARIO[gi][1][ii];
+  const it = SKENARIO[+v];
   scen = it; radius = it[3];
   [...$('#radii').children].forEach(c => c.setAttribute('aria-pressed', +c.dataset.r === radius));
   const c = L.latLng(it[1], it[2]);
