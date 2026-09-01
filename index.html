@@ -33,7 +33,7 @@
   .layers label{display:flex;align-items:center;gap:8px;padding:4px 0;cursor:pointer}
   .sw{width:12px;height:12px;border-radius:50%;display:inline-block;flex:none}
   .sw.sppg{background:var(--sppg)} .sw.bulog{background:var(--bulog);border-radius:2px} .sw.gudang{background:var(--bulog);transform:rotate(45deg);border-radius:1px;width:10px;height:10px} .sw.prov{background:#CFE0CB;border:1px solid #7FA37A}
-  input[type=text],input[type=number]{width:100%;font:inherit;padding:8px 10px;border:1px solid var(--line);border-radius:4px;background:var(--white);color:var(--ink)}
+  input[type=text],input[type=number],select{width:100%;font:inherit;padding:8px 10px;border:1px solid var(--line);border-radius:4px;background:var(--white);color:var(--ink)}
   input:focus,button:focus{outline:2px solid var(--amber);outline-offset:1px}
   #results{list-style:none;margin:6px 0 0;padding:0;max-height:200px;overflow:auto;border:1px solid var(--line);border-radius:4px;display:none}
   #results li{padding:7px 10px;cursor:pointer;border-bottom:1px solid var(--line)} #results li:last-child{border-bottom:0}
@@ -104,6 +104,12 @@
       </div>
       <div class="field">Asumsi kapasitas per SPPG <input type="number" id="porsi" value="3000" min="500" step="100"> porsi/hari</div>
       <div class="field">Koordinat <input type="text" id="coord" placeholder="-6.9, 107.6" style="width:130px"> <button class="chip" id="go">Pakai</button></div>
+      <div class="field" style="display:block">
+        <label for="skenario" style="display:block;margin-bottom:4px">Atau pilih kejadian nyata sebagai skenario</label>
+        <select id="skenario">
+          <option value="">— skenario bencana historis —</option>
+        </select>
+      </div>
       <div id="hint">Klik di mana saja pada peta. Radius, jumlah SPPG, taksiran porsi, dan Kanwil BULOG terdekat akan muncul di sini.</div>
       <div id="brief">
         <div class="note" id="b-where"></div>
@@ -129,6 +135,7 @@
       <p><b>Presisi titik.</b> Lokasi SPPG diplot pada <em>centroid kecamatan</em> (92,5% baris) atau kabupaten/kota (7,5%), bukan alamat persis. Koordinat kecamatan yang salah tempat di gazetteer (jatuh di provinsi lain) sudah dideteksi dan diganti centroid kab/kota. Jarak dalam radius adalah jarak garis lurus (haversine), bukan waktu tempuh. Untuk keputusan operasional, verifikasi titik alamat dari data resmi BGN.</p>
       <p><b>Sumber.</b> Daftar SPPG: salinan komunitas dari bgn.go.id/operasional-sppg (27.640 baris, 253 duplikat dihapus, commit 26 Agu 2026; rekap resmi BGN 8 Jun 2026 = 29.991). Koordinat kecamatan: gazetteer BPS 2021 (repo wilayah-indonesia), divalidasi terhadap poligon provinsi. Kanwil BULOG: alamat resmi 2021, koordinat tingkat kota. Batas provinsi: denyherianto/indonesia-38-provinces.</p>
       <p><b>Gudang BULOG.</b> Isi <code>data/bulog_gudang.csv</code> (nama, lat, lon, kapasitas_ton) dari data resmi BULOG, lalu jalankan <code>scripts/02_build_map.py</code>; peta akan menampilkan gudang dan menghitung gudang terdekat.</p>
+      <p><b>Skenario historis.</b> Titik skenario adalah perkiraan pusat wilayah terdampak kejadian nyata (catatan publik BNPB/BMKG, dibulatkan), bukan episentrum atau batas dampak persis; radius hanya usulan awal. Untuk karhutla, dampak asap jauh melampaui radius mana pun — gunakan sebagai orientasi mobilisasi, bukan analisis dampak.</p>
     </section>
   </div>
 </aside>
@@ -207,12 +214,53 @@ $('#q').addEventListener('input', e => {
   res.style.display = out.length?'block':'none';
 });
 
+// Skenario historis: kejadian nyata sebagai titik uji simulasi.
+// Koordinat = perkiraan pusat kota/kab terdampak (bukan episentrum persis, dibulatkan
+// 2 desimal), sumber catatan publik BNPB/BMKG. Radius hanya usulan awal, bisa diubah.
+const SKENARIO = [
+ ['Gempa bumi & tsunami', [
+  ['Gempa & tsunami Aceh 2004 (M9,1)', 5.55, 95.32, 100, 'Banda Aceh dan pesisir barat Aceh'],
+  ['Gempa Yogyakarta 2006 (M6,4)', -7.89, 110.33, 50, 'Bantul dan sekitarnya'],
+  ['Gempa Sumatera Barat 2009 (M7,6)', -0.95, 100.36, 50, 'Kota Padang dan Padang Pariaman'],
+  ['Gempa Lombok 2018 (M7,0)', -8.35, 116.40, 50, 'Lombok Utara dan Lombok Timur'],
+  ['Gempa, tsunami & likuefaksi Palu 2018 (M7,5)', -0.89, 119.87, 50, 'Palu, Sigi, Donggala'],
+  ['Gempa Cianjur 2022 (M5,6)', -6.82, 107.14, 25, 'Kabupaten Cianjur'],
+ ]],
+ ['Banjir & banjir bandang', [
+  ['Banjir Jabodetabek 2020', -6.21, 106.85, 25, 'Jakarta dan sekitarnya'],
+  ['Banjir Kalimantan Selatan 2021', -3.41, 114.85, 50, '10 kab/kota di sepanjang DAS Barito'],
+  ['Banjir Demak–Kudus 2024', -6.89, 110.64, 25, 'tanggul Sungai Wulan jebol'],
+  ['Banjir bandang & lahar Marapi, Sumbar 2024', -0.46, 100.60, 25, 'Tanah Datar dan Agam'],
+ ]],
+ ['Karhutla (kebakaran hutan & lahan)', [
+  ['Karhutla Riau 2019', 0.51, 101.45, 100, 'kabut asap Pekanbaru dan sekitarnya'],
+  ['Karhutla Kalimantan Tengah 2015', -2.21, 113.92, 100, 'kabut asap pekat Palangka Raya'],
+  ['Karhutla Sumatera Selatan 2015', -3.40, 105.05, 100, 'lahan gambut Ogan Komering Ilir'],
+ ]],
+];
+const sel = $('#skenario');
+SKENARIO.forEach(([grup, items], gi) => {
+  const og = document.createElement('optgroup'); og.label = grup;
+  items.forEach((it, ii) => { const o = document.createElement('option'); o.value = gi + '-' + ii; o.textContent = it[0]; og.appendChild(o); });
+  sel.appendChild(og);
+});
+let scen = null;
+sel.addEventListener('change', () => {
+  const v = sel.value; if (!v) return;
+  const [gi, ii] = v.split('-').map(Number); const it = SKENARIO[gi][1][ii];
+  scen = it; radius = it[3];
+  [...$('#radii').children].forEach(c => c.setAttribute('aria-pressed', +c.dataset.r === radius));
+  const c = L.latLng(it[1], it[2]);
+  map.setView(c, radius >= 100 ? 7 : radius >= 50 ? 8 : 9);
+  run(c);
+});
+
 // Disaster probe
 let radius = 25, probe = null, probeCenter = null, label = null;
 $('#radii').addEventListener('click', e => { const b=e.target.closest('.chip'); if(!b) return; radius=+b.dataset.r; [...$('#radii').children].forEach(c=>c.setAttribute('aria-pressed', c===b)); if(probeCenter) run(probeCenter); });
 $('#porsi').addEventListener('input', () => probeCenter && run(probeCenter));
-$('#go').addEventListener('click', () => { const m=$('#coord').value.match(/(-?\d+(?:\.\d+)?)\s*[, ]\s*(-?\d+(?:\.\d+)?)/); if(m){ const c=L.latLng(+m[1],+m[2]); map.setView(c, 9); run(c);} });
-map.on('click', e => { if(e.originalEvent.target.closest && e.originalEvent.target.closest('#panel')) return; run(e.latlng); });
+$('#go').addEventListener('click', () => { const m=$('#coord').value.match(/(-?\d+(?:\.\d+)?)\s*[, ]\s*(-?\d+(?:\.\d+)?)/); if(m){ scen=null; sel.value=''; const c=L.latLng(+m[1],+m[2]); map.setView(c, 9); run(c);} });
+map.on('click', e => { if(e.originalEvent.target.closest && e.originalEvent.target.closest('#panel')) return; scen=null; sel.value=''; run(e.latlng); });
 let last = null;
 function run(c){
   probeCenter = c; const porsi = +$('#porsi').value || 3000;
@@ -224,7 +272,7 @@ function run(c){
   const kw = KANWIL.map(k=>({k, d:hav(c.lat,c.lng,k.lat,k.lon)})).sort((a,b)=>a.d-b.d).slice(0,3);
   const gd = BULOG_GUDANG.map(g=>({g, d:hav(c.lat,c.lng,g.lat,g.lon)})).sort((a,b)=>a.d-b.d).slice(0,3);
   $('#hint').style.display='none'; $('#brief').style.display='block';
-  $('#b-where').textContent = `Titik ${c.lat.toFixed(4)}, ${c.lng.toFixed(4)}`;
+  $('#b-where').textContent = (scen ? `${scen[0]} (${scen[4]}) — ` : '') + `Titik ${c.lat.toFixed(4)}, ${c.lng.toFixed(4)}`;
   $('#b-n').textContent = fmt(inside.length); $('#b-r').textContent = radius;
   $('#b-porsi').textContent = `±${fmt(inside.length*porsi)} porsi/hari`;
   $('#b-kw').innerHTML = kw.map(x=>`${esc(x.k.n)} (${esc(x.k.c)}), ${Math.round(x.d)} km`).join('<br>');
@@ -233,13 +281,14 @@ function run(c){
   rows.slice(0,8).forEach(([k,n])=>{const tr=document.createElement('tr');tr.innerHTML=`<td>${esc(k)}</td><td>${fmt(n)}</td>`;kb.appendChild(tr);});
   if(rows.length>8){const tr=document.createElement('tr');tr.innerHTML=`<td class="note">${rows.length-8} kab/kota lainnya</td><td></td>`;kb.appendChild(tr);}
   if(!rows.length){kb.innerHTML='<tr><td class="note">Tidak ada SPPG dalam radius ini. Coba radius lebih besar.</td><td></td></tr>';}
-  last = {c, inside:inside.length, porsi:inside.length*porsi, kw, gd, rows};
+  last = {c, inside:inside.length, porsi:inside.length*porsi, kw, gd, rows, scen};
   if($('#panel').classList.contains('collapsed')) { $('#panel').classList.remove('collapsed'); $('#toggle').textContent='Tutup'; }
 }
 $('#clear').addEventListener('click', ()=>{ if(probe) probe.remove(); if(label) label.remove(); probe=label=probeCenter=null; $('#brief').style.display='none'; $('#hint').style.display='block'; });
 $('#copy').addEventListener('click', ()=>{
   if(!last) return;
-  const t = [`Simulasi titik bencana ${last.c.lat.toFixed(4)}, ${last.c.lng.toFixed(4)} (radius ${radius} km)`,
+  const t = [last.scen ? `Skenario: ${last.scen[0]} — ${last.scen[4]}` : null,
+    `Simulasi titik bencana ${last.c.lat.toFixed(4)}, ${last.c.lng.toFixed(4)} (radius ${radius} km)`,
     `SPPG dalam radius: ${fmt(last.inside)} unit, taksiran ±${fmt(last.porsi)} porsi/hari`,
     `Kanwil BULOG terdekat: ${last.kw.map(x=>`${x.k.n} ${Math.round(x.d)} km`).join('; ')}`,
     last.gd.length?`Gudang BULOG terdekat: ${last.gd.map(x=>`${x.g.n} ${Math.round(x.d)} km`).join('; ')}`:null,
@@ -248,7 +297,6 @@ $('#copy').addEventListener('click', ()=>{
   navigator.clipboard?.writeText(t).then(()=>{$('#copy').textContent='Tersalin';setTimeout(()=>$('#copy').textContent='Salin ringkasan',1500);});
 });
 $('#toggle').addEventListener('click', ()=>{ const p=$('#panel'); p.classList.toggle('collapsed'); const c=p.classList.contains('collapsed'); $('#toggle').textContent=c?'Buka':'Tutup'; $('#toggle').setAttribute('aria-expanded', !c); });
-if (window.innerWidth<=640) { $('#panel').classList.add('collapsed'); $('#toggle').textContent='Buka'; }
 </script>
 </body>
 </html>
