@@ -13,7 +13,7 @@ Fitur:
 - 27.387 titik SPPG dengan pengelompokan otomatis (klaster) dan pencarian kabupaten, kecamatan, atau nama SPPG
 - 26 Kanwil BULOG
 - Simulasi titik bencana: klik peta, pilih radius, dapatkan jumlah SPPG, taksiran porsi/hari (asumsi 3.000 porsi per SPPG, bisa diubah), rincian per kab/kota, Kanwil dan gudang BULOG terdekat, lalu salin ringkasannya
-- Skenario bencana historis sekali klik: gempa besar (Aceh 2004, Yogyakarta 2006, Padang 2009, Lombok dan Palu 2018, Cianjur 2022), banjir (Jabodetabek 2020, Kalsel 2021, Demak–Kudus 2024, banjir bandang Sumbar 2024), dan karhutla (Riau 2019, Kalteng dan Sumsel 2015) — titiknya perkiraan pusat wilayah terdampak, radiusnya usulan awal
+- Skenario bencana historis sekali klik, 2004–2026: gempa besar (Aceh 2004, Yogyakarta 2006, Padang 2009, Lombok dan Palu 2018, Cianjur 2022, Laut Sulawesi Jun 2026, Flores NTT Agu 2026), banjir (Jabodetabek 2020, Kalsel 2021, Demak–Kudus 2024, banjir bandang Sumbar 2024, banjir-longsor Sumatra Des 2025 di dua klaster dampak), dan karhutla (Riau 2019, Kalteng dan Sumsel 2015) — titiknya perkiraan pusat wilayah terdampak, radiusnya usulan awal. Episentrum gempa 2026 dari rilis BMKG; wilayah terparah banjir Sumatra 2025 dari rekap BNPB/pemberitaan
 - Batas 38 provinsi dengan jumlah SPPG
 
 ## Isi repo
