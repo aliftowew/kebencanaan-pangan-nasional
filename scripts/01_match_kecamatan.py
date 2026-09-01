@@ -110,11 +110,74 @@ df["kode_kab_bps"] = [r[3] if r else None for r in res]; df["kode_kec_bps"] = [r
 before = len(df)
 df = df.drop_duplicates(subset=["nama","kab","kec","desa"]).reset_index(drop=True)
 print(f"duplikat dihapus: {before-len(df)} -> {len(df)} baris")
-print("presisi:", df["presisi"].value_counts().to_dict())
-if (df["presisi"] == "none").any():
-    print("PERHATIAN, kab/kota tidak dikenali:", df[df.presisi=="none"]["kab"].unique())
 
 df["prov"] = df["prov"].str.replace("P A P U A","PAPUA",regex=False).str.replace("DAERAH ISTIMEWA YOGYAKARTA","DI YOGYAKARTA",regex=False)
+
+# --- Validasi koordinat terhadap poligon provinsi ---
+# Gazetteer menempatkan sebagian kecamatan bernama umum (TAMAN, KEDIRI, SELONG,
+# PULAUPINANG, ...) di provinsi lain, bahkan di luar negeri. Titik yang jatuh di dalam
+# provinsi lain, atau > FAR derajat dari provinsi yang diklaim BGN, diganti centroid
+# kab/kota (presisi tetap jujur: "kabkota"). Toleransi NEAR dan aturan lepas-pantai
+# menerima kecamatan kepulauan yang hilang dari poligon provinsi yang disederhanakan
+# (Kep. Seribu, pulau-pulau Sumenep, Natuna, Sitaro, Takabonerate, dll.).
+provgeo = json.load(open(os.path.join(ROOT, "scripts", "indonesia_38_prov.min.json")))
+def _rings(g): return [g["coordinates"][0]] if g["type"] == "Polygon" else [p[0] for p in g["coordinates"]]
+def _inside(lon, lat, ring):
+    ok = False; j = len(ring) - 1
+    for i in range(len(ring)):
+        xi, yi = ring[i][0], ring[i][1]; xj, yj = ring[j][0], ring[j][1]
+        if (yi > lat) != (yj > lat) and lon < (xj - xi) * (lat - yi) / (yj - yi) + xi: ok = not ok
+        j = i
+    return ok
+def _dist(lon, lat, ring): return min(((lon - p[0])**2 + (lat - p[1])**2) ** .5 for p in ring)
+def pkey(s):
+    s = norm(s)
+    return "DI YOGYAKARTA" if s == "DAERAH ISTIMEWA YOGYAKARTA" else s
+prov_rings = defaultdict(list)
+for f in provgeo["features"]:
+    prov_rings[pkey(f["properties"]["PROVINSI"])] += _rings(f["geometry"])
+NEAR, FAR = 0.25, 1.2
+def coord_ok(prov, lat, lon):
+    own = prov_rings.get(pkey(prov))
+    if not own: return True  # provinsi tak dikenal: jangan buang
+    if any(_inside(lon, lat, r) for r in own): return True
+    d = min(_dist(lon, lat, r) for r in own)
+    if d <= NEAR: return True
+    if d > FAR: return False
+    # dekat provinsi sendiri tapi di luar poligon: terima kecuali jelas di provinsi lain
+    return not any(_inside(lon, lat, r) for k, rs in prov_rings.items() if k != pkey(prov) for r in rs)
+
+def fix_coord(prov, lat, lon, rid):
+    """None = titik sudah benar; selain itu (lat, lon, presisi, cara)."""
+    if pd.isna(lat) or coord_ok(prov, lat, lon): return None
+    g = reg_by_id.get(rid)
+    if g and g.get("latitude") is not None and coord_ok(prov, g["latitude"], g["longitude"]):
+        return (g["latitude"], g["longitude"], "kabkota", "centroid kab")
+    # centroid kab di gazetteer ikut salah: pakai rata-rata kecamatan valid di kab itu
+    pts = [(d["latitude"], d["longitude"]) for d in d_by_reg.get(rid, [])
+           if d.get("latitude") is not None and coord_ok(prov, d["latitude"], d["longitude"])]
+    if pts:
+        la = sum(p[0] for p in pts) / len(pts); lo = sum(p[1] for p in pts) / len(pts)
+        if coord_ok(prov, la, lo): return (la, lo, "kabkota", "rata-rata kec valid")
+    return (None, None, "none", "dibuang")
+
+vcache = {}; n_fix = defaultdict(int); contoh = []
+lat_l, lon_l, pre_l = df["lat"].tolist(), df["lon"].tolist(), df["presisi"].tolist()
+for i, (prov, kab, kec, rid) in enumerate(zip(df["prov"], df["kab"], df["kec"], df["kode_kab_bps"])):
+    key = (pkey(prov), norm(kab), norm(kec))
+    if key not in vcache: vcache[key] = fix_coord(prov, lat_l[i], lon_l[i], rid)
+    f = vcache[key]
+    if f is not None:
+        if len(contoh) < 8 and (prov, kab, kec) not in [c[:3] for c in contoh]:
+            contoh.append((prov, kab, kec, lat_l[i], lon_l[i], f[3]))
+        lat_l[i], lon_l[i], pre_l[i] = f[0], f[1], f[2]; n_fix[f[3]] += 1
+df["lat"], df["lon"], df["presisi"] = lat_l, lon_l, pre_l
+print("validasi provinsi:", dict(n_fix) or "semua titik lolos")
+for c in contoh: print("  perbaikan:", c)
+
+print("presisi:", df["presisi"].value_counts().to_dict())
+if (df["presisi"] == "none").any():
+    print("PERHATIAN, baris tanpa koordinat tepercaya:", len(df[df.presisi=="none"]))
 df.insert(0, "id_sppg", [f"S{i+1:05d}" for i in range(len(df))])
 df["lat"] = df["lat"].round(5); df["lon"] = df["lon"].round(5)
 out = df[["id_sppg","nama","prov","kab","kec","desa","alamat","lat","lon","presisi","kode_kab_bps","kode_kec_bps"]]
